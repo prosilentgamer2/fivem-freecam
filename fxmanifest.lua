@@ -1,12 +1,15 @@
 fx_version 'cerulean'
-games { 'gta5' }
+game 'gta5'
 
-author 'Deltanic'
-description 'Simple freecam API for FiveM.'
-version '1.0.0'
+name 'fivem-freecam'
+author 'Deltanic, maintained by prosilentgamer2'
+description 'Standalone freecam API for FiveM.'
+version '2.0.0'
 
-client_script 'client/utils.lua'
-client_script 'client/config.lua'
-client_script 'client/camera.lua'
-client_script 'client/exports.lua'
-client_script 'client/main.lua'
+client_scripts {
+    'client/utils.lua',
+    'client/config.lua',
+    'client/camera.lua',
+    'client/exports.lua',
+    'client/main.lua'
+}
