@@ -1,72 +1,128 @@
-FiveM Freecam
-=============
+# FiveM Freecam
 
-Simple freecam API for FiveM.
+A lightweight, standalone freecam API for FiveM. No framework or external dependency is required.
 
-Features
---------
+## Features
 
-- Easy to use freecam API
-- Improved state accuracy over native GTA
-- Moves with the minimap
-- Adjustable moving speed
-- Support for keyboard and gamepads
-- Fully configurable
+- Modern `fxmanifest.lua`
+- Lua 5.4-compatible code
+- Keyboard and controller support
+- Frame-rate-independent movement speed
+- Rebindable controls through FiveM key mappings
+- Configurable speed, sensitivity, FOV, easing, and retained camera state
+- Position, rotation, matrix, target, and lifecycle exports
+- Automatic player-control and camera cleanup when the resource stops
 
-Controls
---------
+## Installation
 
-These are the default controls for the freecam. Keep in mind controls may be
-different depending on your game settings or keyboard layout.
+1. Download or clone this repository into your server's `resources` folder.
+2. Keep the resource folder named `fivem-freecam`.
+3. Add this to `server.cfg`:
 
-> Controls can be customized by [configuring the freecam](docs/CONFIGURING.md#control-mapping).
+```cfg
+ensure fivem-freecam
+```
+
+## Basic usage
+
+Add the dependency to the resource that will use the freecam:
+
+```lua
+-- fxmanifest.lua
+dependency 'fivem-freecam'
+
+client_script 'client.lua'
+```
+
+Then call the client exports:
+
+```lua
+-- client.lua
+local Freecam = exports['fivem-freecam']
+
+RegisterCommand('freecam', function()
+    Freecam:SetActive(not Freecam:IsActive())
+end, false)
+
+RegisterKeyMapping('freecam', 'Toggle freecam', 'keyboard', 'F5')
+```
+
+`RegisterKeyMapping` lets each player change the toggle key under **Settings > Key Bindings > FiveM**.
+
+## Default controls
 
 ### Keyboard
 
-- Mouse to look around
-- W and S to move forward and backward
-- A and D to move left and right
-- Q and E to move up and down
-- Alt to slow down
-- Shift to speed up
+- Mouse: look
+- W / S: forward and backward
+- A / D: left and right
+- Q / E: vertical movement
+- Left Shift: faster movement
+- Left Alt: slower movement
 
-### Gamepad
+### Controller
 
-- Left joystick to move around
-- Right joystick to look around
-- Left button to move down
-- Right button to move up
-- Left trigger to slow down
-- Right trigger to speed up
+- Left stick: move
+- Right stick: look
+- RB / LB: up and down
+- RT: faster movement
+- LT: slower movement
 
-Usage
------
+The movement and look inputs can also be changed through the configuration exports documented below.
 
-In your `fxmanifest.lua`:
-```lua
-dependency 'fivem-freecam'
-client_script 'script.lua'
-```
+## Export examples
 
-In your `script.lua`:
 ```lua
 local Freecam = exports['fivem-freecam']
 
--- Toggles the freecam by pressing F5
-Citizen.CreateThread(function ()
-  while true do
-    Citizen.Wait(0)
-    if IsDisabledControlJustPressed(0, 166) then
-      local isActive = Freecam:IsActive()
-      Freecam:SetActive(not isActive)
-    end
-  end
+Freecam:SetActive(true)
+Freecam:SetFrozen(false)
+Freecam:SetFov(60.0)
+Freecam:SetPosition(vector3(215.0, -810.0, 40.0))
+Freecam:SetRotation(vector3(-15.0, 0.0, 180.0))
+
+local position = Freecam:GetPosition()
+local rotation = Freecam:GetRotation()
+local target = Freecam:GetTarget(100.0)
+local right, forward, up, cameraPosition = Freecam:GetMatrix()
+```
+
+Both vector and numeric setter forms are supported:
+
+```lua
+Freecam:SetPosition(vector3(215.0, -810.0, 40.0))
+Freecam:SetPosition(215.0, -810.0, 40.0)
+
+Freecam:SetRotation(vector3(-15.0, 0.0, 180.0))
+Freecam:SetRotation(-15.0, 0.0, 180.0)
+```
+
+## Events
+
+```lua
+AddEventHandler('freecam:onEnter', function()
+    print('Freecam enabled')
+end)
+
+AddEventHandler('freecam:onTick', function()
+    local target = exports['fivem-freecam']:GetTarget(50.0)
+end)
+
+AddEventHandler('freecam:onExit', function()
+    print('Freecam disabled')
 end)
 ```
 
-Documentation
--------------
+## Documentation
 
-- [Configuring](docs/CONFIGURING.md)
-- [Functions](docs/EXPORTS.md)
+- [Configuration](docs/CONFIGURING.md)
+- [Exports](docs/EXPORTS.md)
 - [Events](docs/EVENTS.md)
+
+## Compatibility
+
+This resource is client-side and framework-independent. It can be used with QBCore, ESX, standalone resources, or any other FiveM stack.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
