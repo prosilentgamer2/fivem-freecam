@@ -1,139 +1,154 @@
-local _internal_camera = nil
-local _internal_isFrozen = false
+local camera = 0
+local frozen = false
 
-local _internal_pos = nil
-local _internal_rot = nil
-local _internal_fov = nil
-local _internal_vecX = nil
-local _internal_vecY = nil
-local _internal_vecZ = nil
+local position = nil
+local rotation = nil
+local fieldOfView = nil
+local vectorX = nil
+local vectorY = nil
+local vectorZ = nil
 
---------------------------------------------------------------------------------
+local function cameraExists()
+    return camera ~= 0 and DoesCamExist(camera)
+end
 
 function GetInitialCameraPosition()
-  if _G.CAMERA_SETTINGS.KEEP_POSITION and _internal_pos then
-    return _internal_pos
-  end
+    if _G.CAMERA_SETTINGS.KEEP_POSITION and position then
+        return position
+    end
 
-  return GetGameplayCamCoord()
+    return GetGameplayCamCoord()
 end
 
 function GetInitialCameraRotation()
-  if _G.CAMERA_SETTINGS.KEEP_ROTATION and _internal_rot then
-    return _internal_rot
-  end
+    if _G.CAMERA_SETTINGS.KEEP_ROTATION and rotation then
+        return rotation
+    end
 
-  local rot = GetGameplayCamRot()
-  return vector3(rot.x, 0.0, rot.z)
+    local gameplayRotation = GetGameplayCamRot(2)
+    return vector3(gameplayRotation.x, 0.0, gameplayRotation.z)
 end
-
---------------------------------------------------------------------------------
 
 function IsFreecamFrozen()
-  return _internal_isFrozen
+    return frozen
 end
 
-function SetFreecamFrozen(frozen)
-  local frozen = frozen == true
-  _internal_isFrozen = frozen
+function SetFreecamFrozen(value)
+    frozen = value == true
 end
-
---------------------------------------------------------------------------------
 
 function GetFreecamPosition()
-  return _internal_pos
+    return position
 end
 
 function SetFreecamPosition(x, y, z)
-  local pos = vector3(x, y, z)
-  local int = GetInteriorAtCoords(pos)
+    x, y, z = ResolveVector3(x, y, z, 'position')
+    position = vector3(x, y, z)
 
-  LoadInterior(int)
-  SetFocusArea(pos)
-  LockMinimapPosition(x, y)
-  SetCamCoord(_internal_camera, pos)
+    if not cameraExists() then
+        return
+    end
 
-  _internal_pos = pos
+    local interior = GetInteriorAtCoords(x, y, z)
+    if interior ~= 0 then
+        PinInteriorInMemory(interior)
+    end
+
+    SetFocusPosAndVel(x, y, z, 0.0, 0.0, 0.0)
+    LockMinimapPosition(x, y)
+    SetCamCoord(camera, x, y, z)
 end
 
---------------------------------------------------------------------------------
-
 function GetFreecamRotation()
-  return _internal_rot
+    return rotation
 end
 
 function SetFreecamRotation(x, y, z)
-  local rotX, rotY, rotZ = ClampCameraRotation(x, y, z)
-  local vecX, vecY, vecZ = EulerToMatrix(rotX, rotY, rotZ)
-  local rot = vector3(rotX, rotY, rotZ)
+    x, y, z = ResolveVector3(x, y, z, 'rotation')
 
-  LockMinimapAngle(math.floor(rotZ))
-  SetCamRot(_internal_camera, rot)
+    local rotX, rotY, rotZ = ClampCameraRotation(x, y, z)
+    vectorX, vectorY, vectorZ = EulerToMatrix(rotX, rotY, rotZ)
+    rotation = vector3(rotX, rotY, rotZ)
 
-  _internal_rot  = rot
-  _internal_vecX = vecX
-  _internal_vecY = vecY
-  _internal_vecZ = vecZ
+    if not cameraExists() then
+        return
+    end
+
+    LockMinimapAngle(math.floor(rotZ))
+    SetCamRot(camera, rotX, rotY, rotZ, 2)
 end
-
---------------------------------------------------------------------------------
 
 function GetFreecamFov()
-  return _internal_fov
+    return fieldOfView
 end
 
-function SetFreecamFov(fov)
-  local fov = Clamp(fov, 0.0, 90.0)
-  SetCamFov(_internal_camera, fov)
-  _internal_fov = fov
-end
+function SetFreecamFov(value)
+    assert(type(value) == 'number', 'FOV must be a number.')
 
---------------------------------------------------------------------------------
+    fieldOfView = Clamp(value + 0.0, 1.0, 130.0)
+
+    if cameraExists() then
+        SetCamFov(camera, fieldOfView)
+    end
+end
 
 function GetFreecamMatrix()
-  return _internal_vecX,
-         _internal_vecY,
-         _internal_vecZ,
-         _internal_pos
+    return vectorX, vectorY, vectorZ, position
 end
 
 function GetFreecamTarget(distance)
-  local target = _internal_pos + (_internal_vecY * distance)
-  return target
+    assert(type(distance) == 'number', 'Distance must be a number.')
+
+    if not position or not vectorY then
+        return nil
+    end
+
+    return position + (vectorY * distance)
 end
 
---------------------------------------------------------------------------------
-
 function IsFreecamActive()
-  return IsCamActive(_internal_camera) == 1
+    return cameraExists() and IsCamActive(camera)
 end
 
 function SetFreecamActive(active)
-  if active == IsFreecamActive() then
-    return
-  end
+    active = active == true
 
-  local enableEasing = _G.CAMERA_SETTINGS.ENABLE_EASING
-  local easingDuration = _G.CAMERA_SETTINGS.EASING_DURATION
+    if active == IsFreecamActive() then
+        return
+    end
 
-  if active then
-    local pos = GetInitialCameraPosition()
-    local rot = GetInitialCameraRotation()
+    local enableEasing = _G.CAMERA_SETTINGS.ENABLE_EASING == true
+    local easingDuration = math.max(0, math.floor(_G.CAMERA_SETTINGS.EASING_DURATION or 0))
 
-    _internal_camera = CreateCam('DEFAULT_SCRIPTED_CAMERA', true)
+    if active then
+        local initialPosition = GetInitialCameraPosition()
+        local initialRotation = GetInitialCameraRotation()
 
-    SetFreecamFov(_G.CAMERA_SETTINGS.FOV)
-    SetFreecamPosition(pos.x, pos.y, pos.z)
-    SetFreecamRotation(rot.x, rot.y, rot.z)
-    TriggerEvent('freecam:onEnter')
-  else
-    DestroyCam(_internal_camera)
+        camera = CreateCam('DEFAULT_SCRIPTED_CAMERA', true)
+        if camera == 0 then
+            error('Failed to create the freecam camera.')
+        end
+
+        SetFreecamFov(_G.CAMERA_SETTINGS.FOV)
+        SetFreecamPosition(initialPosition)
+        SetFreecamRotation(initialRotation)
+
+        SetPlayerControl(PlayerId(), false, 0)
+        RenderScriptCams(true, enableEasing, easingDuration, true, true)
+        TriggerEvent('freecam:onEnter')
+        return
+    end
+
+    SetPlayerControl(PlayerId(), true, 0)
+    RenderScriptCams(false, enableEasing, easingDuration, true, true)
+
+    if cameraExists() then
+        DestroyCam(camera, false)
+    end
+
+    camera = 0
     ClearFocus()
     UnlockMinimapPosition()
     UnlockMinimapAngle()
     TriggerEvent('freecam:onExit')
-  end
-
-  SetPlayerControl(PlayerId(), not active)
-  RenderScriptCams(active, enableEasing, easingDuration)
 end
