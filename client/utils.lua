@@ -1,91 +1,96 @@
-function table.copy(x)
-  local copy = {}
-  for k, v in pairs(x) do
-    if type(v) == 'table' then
-        copy[k] = table.copy(v)
-    else
-        copy[k] = v
+function table.copy(value)
+    local copy = {}
+
+    for key, item in pairs(value) do
+        copy[key] = type(item) == 'table' and table.copy(item) or item
     end
-  end
-  return copy
+
+    return copy
 end
 
-function protect(t)
-  local fn = function (_, k)
-    error('Key `' .. tostring(k) .. '` is not supported.')
-  end
+function protect(value)
+    local function unsupported(_, key)
+        error(('Key `%s` is not supported.'):format(tostring(key)), 2)
+    end
 
-  return setmetatable(t, {
-    __index = fn,
-    __newindex = fn
-  })
+    return setmetatable(value, {
+        __index = unsupported,
+        __newindex = unsupported
+    })
 end
 
 function CreateGamepadMetatable(keyboard, gamepad)
-  return setmetatable({}, {
-    __index = function (t, k)
-      local src = IsGamepadControl() and gamepad or keyboard
-      return src[k]
-    end
-  })
+    return setmetatable({}, {
+        __index = function(_, key)
+            local source = IsGamepadControl() and gamepad or keyboard
+            return source[key]
+        end
+    })
 end
 
-function Clamp(x, min, max)
-  return math.min(math.max(x, min), max)
+function Clamp(value, minimum, maximum)
+    return math.min(math.max(value, minimum), maximum)
 end
 
 function ClampCameraRotation(rotX, rotY, rotZ)
-  local x = Clamp(rotX, -90.0, 90.0)
-  local y = rotY % 360
-  local z = rotZ % 360
-  return x, y, z
+    return Clamp(rotX, -90.0, 90.0), rotY % 360.0, rotZ % 360.0
 end
 
 function IsGamepadControl()
-  return not IsInputDisabled(2)
+    return not IsInputDisabled(2)
 end
 
 function GetSmartControlNormal(control)
     if type(control) == 'table' then
-      local normal1 = GetDisabledControlNormal(0, control[1])
-      local normal2 = GetDisabledControlNormal(0, control[2])
-      return normal1 - normal2
+        local positive = GetDisabledControlNormal(0, control[1])
+        local negative = GetDisabledControlNormal(0, control[2])
+        return positive - negative
     end
 
     return GetDisabledControlNormal(0, control)
-  end
+end
+
+function ResolveVector3(x, y, z, argumentName)
+    if type(x) == 'vector3' then
+        return x.x, x.y, x.z
+    end
+
+    assert(type(x) == 'number', ('%s x value must be a number or vector3.'):format(argumentName))
+    assert(type(y) == 'number', ('%s y value must be a number.'):format(argumentName))
+    assert(type(z) == 'number', ('%s z value must be a number.'):format(argumentName))
+
+    return x + 0.0, y + 0.0, z + 0.0
+end
 
 function EulerToMatrix(rotX, rotY, rotZ)
-  local radX = math.rad(rotX)
-  local radY = math.rad(rotY)
-  local radZ = math.rad(rotZ)
+    local radX = math.rad(rotX)
+    local radY = math.rad(rotY)
+    local radZ = math.rad(rotZ)
 
-  local sinX = math.sin(radX)
-  local sinY = math.sin(radY)
-  local sinZ = math.sin(radZ)
-  local cosX = math.cos(radX)
-  local cosY = math.cos(radY)
-  local cosZ = math.cos(radZ)
+    local sinX = math.sin(radX)
+    local sinY = math.sin(radY)
+    local sinZ = math.sin(radZ)
+    local cosX = math.cos(radX)
+    local cosY = math.cos(radY)
+    local cosZ = math.cos(radZ)
 
-  local vecX = {}
-  local vecY = {}
-  local vecZ = {}
+    local vecX = vector3(
+        cosY * cosZ,
+        cosY * sinZ,
+        -sinY
+    )
 
-  vecX.x = cosY * cosZ
-  vecX.y = cosY * sinZ
-  vecX.z = -sinY
+    local vecY = vector3(
+        cosZ * sinX * sinY - cosX * sinZ,
+        cosX * cosZ - sinX * sinY * sinZ,
+        cosY * sinX
+    )
 
-  vecY.x = cosZ * sinX * sinY - cosX * sinZ
-  vecY.y = cosX * cosZ - sinX * sinY * sinZ
-  vecY.z = cosY * sinX
+    local vecZ = vector3(
+        -cosX * cosZ * sinY + sinX * sinZ,
+        -cosZ * sinX + cosX * sinY * sinZ,
+        cosX * cosY
+    )
 
-  vecZ.x = -cosX * cosZ * sinY + sinX * sinZ
-  vecZ.y = -cosZ * sinX + cosX * sinY * sinZ
-  vecZ.z = cosX * cosY
-
-  vecX = vector3(vecX.x, vecX.y, vecX.z)
-  vecY = vector3(vecY.x, vecY.y, vecY.z)
-  vecZ = vector3(vecZ.x, vecZ.y, vecZ.z)
-
-  return vecX, vecY, vecZ
+    return vecX, vecY, vecZ
 end
